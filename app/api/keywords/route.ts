@@ -75,11 +75,9 @@ export async function GET(req: NextRequest) {
     "Content-Type": "application/json",
   };
 
-  // If using a manager account (MCC), include the login-customer-id
-  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
-  if (loginCustomerId) {
-    headers["login-customer-id"] = loginCustomerId;
-  }
+  // For manager accounts (MCC), login-customer-id is required
+  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || customerId;
+  headers["login-customer-id"] = loginCustomerId.trim();
 
   try {
     const response = await fetch(
@@ -155,12 +153,13 @@ export async function GET(req: NextRequest) {
       relatedKeywords: related,
     });
   } catch (error) {
-    console.error("Keyword API error:", error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Keyword API error:", errMsg);
     return NextResponse.json({
       isConfigured: true,
       primaryMetrics: null,
       relatedKeywords: [],
-      error: "Failed to fetch keyword data",
+      error: `Keyword API error: ${errMsg}`,
     });
   }
 }
