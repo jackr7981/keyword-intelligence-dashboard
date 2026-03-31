@@ -50,3 +50,26 @@ export interface AnalysisResult {
   opportunities: string[];
   risks: string[];
 }
+
+// Google Ads Keyword Planner types
+export interface KeywordIdea {
+  keyword: string;
+  avgMonthlySearches: number;
+  competition: string;
+  competitionIndex: number;
+  lowBidMicros: number;
+  highBidMicros: number;
+}
+
+export interface KeywordResponse {
+  isConfigured: boolean;
+  primaryMetrics: KeywordIdea | null;
+  relatedKeywords: KeywordIdea[];
+  error?: string;
+}
+
+// Google Autocomplete types
+export interface SuggestResponse {
+  suggestions: string[];
+  questions: string[];
+}

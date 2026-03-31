@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { keyword, trendsData, redditData } = body;
+  const { keyword, trendsData, redditData, keywordData, suggestData } = body;
 
   if (!keyword) {
     return NextResponse.json({ error: "Keyword is required" }, { status: 400 });
@@ -40,10 +40,36 @@ ${redditData.posts
   .join("\n")}`
       : `No Reddit discussion data available for "${keyword}".`;
 
+  // Google Ads Keyword Planner context
+  const keywordContext =
+    keywordData?.isConfigured && keywordData?.primaryMetrics
+      ? `
+## Google Ads Keyword Planner Data:
+- Monthly search volume: ${keywordData.primaryMetrics.avgMonthlySearches.toLocaleString()}
+- CPC (low bid): $${(keywordData.primaryMetrics.lowBidMicros / 1_000_000).toFixed(2)}
+- CPC (high bid): $${(keywordData.primaryMetrics.highBidMicros / 1_000_000).toFixed(2)}
+- Competition: ${keywordData.primaryMetrics.competition} (index: ${keywordData.primaryMetrics.competitionIndex}/100)
+- Related keyword ideas: ${keywordData.relatedKeywords
+          ?.slice(0, 8)
+          .map((k: { keyword: string; avgMonthlySearches: number }) => `${k.keyword} (${k.avgMonthlySearches.toLocaleString()}/mo)`)
+          .join(", ") || "None"}`
+      : "";
+
+  // Google Autocomplete context
+  const suggestContext =
+    suggestData?.suggestions?.length > 0
+      ? `
+## Google Autocomplete Suggestions:
+- People also search: ${suggestData.suggestions.slice(0, 8).join(", ")}
+- Questions people ask: ${suggestData.questions?.slice(0, 5).join(", ") || "None"}`
+      : "";
+
   const prompt = `You are an expert SEO strategist and content intelligence analyst. Analyze the following search data for the keyword: "${keyword}"
 
 ${trendContext}
+${keywordContext}
 ${redditContext}
+${suggestContext}
 
 Provide a structured analysis. Respond ONLY with valid JSON — no markdown, no code blocks, just raw JSON:
 

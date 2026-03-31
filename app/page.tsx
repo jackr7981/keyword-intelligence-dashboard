@@ -7,7 +7,15 @@ import RelatedQueries from "@/components/RelatedQueries";
 import RegionalInterest from "@/components/RegionalInterest";
 import RedditSignals from "@/components/RedditSignals";
 import AnalysisPanel from "@/components/AnalysisPanel";
-import { TrendsResponse, RedditResponse, AnalysisResult } from "@/lib/types";
+import KeywordMetrics from "@/components/KeywordMetrics";
+import SearchSuggestions from "@/components/SearchSuggestions";
+import {
+  TrendsResponse,
+  RedditResponse,
+  AnalysisResult,
+  KeywordResponse,
+  SuggestResponse,
+} from "@/lib/types";
 import { BarChart2, Zap, Search } from "lucide-react";
 
 function SkeletonCard({ height = "h-64" }: { height?: string }) {
@@ -25,9 +33,13 @@ export default function Home() {
   const [trendsData, setTrendsData] = useState<TrendsResponse | null>(null);
   const [redditData, setRedditData] = useState<RedditResponse | null>(null);
   const [analysisData, setAnalysisData] = useState<AnalysisResult | null>(null);
+  const [keywordData, setKeywordData] = useState<KeywordResponse | null>(null);
+  const [suggestData, setSuggestData] = useState<SuggestResponse | null>(null);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
   const [isLoadingReddit, setIsLoadingReddit] = useState(false);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [isLoadingKeywords, setIsLoadingKeywords] = useState(false);
+  const [isLoadingSuggest, setIsLoadingSuggest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentKeyword, setCurrentKeyword] = useState("");
 
@@ -38,18 +50,30 @@ export default function Home() {
     setTrendsData(null);
     setRedditData(null);
     setAnalysisData(null);
+    setKeywordData(null);
+    setSuggestData(null);
     setIsLoadingTrends(true);
     setIsLoadingReddit(true);
+    setIsLoadingKeywords(true);
+    setIsLoadingSuggest(true);
 
     try {
-      const [trendsRes, redditRes] = await Promise.allSettled([
-        fetch(
-          `/api/trends?keyword=${encodeURIComponent(primary)}&timeframe=${timeframe}`
-        ).then((r) => r.json()),
-        fetch(`/api/reddit?keyword=${encodeURIComponent(primary)}`).then((r) =>
-          r.json()
-        ),
-      ]);
+      // Fetch ALL data sources in parallel
+      const [trendsRes, redditRes, keywordRes, suggestRes] =
+        await Promise.allSettled([
+          fetch(
+            `/api/trends?keyword=${encodeURIComponent(primary)}&timeframe=${timeframe}`
+          ).then((r) => r.json()),
+          fetch(`/api/reddit?keyword=${encodeURIComponent(primary)}`).then(
+            (r) => r.json()
+          ),
+          fetch(`/api/keywords?keyword=${encodeURIComponent(primary)}`).then(
+            (r) => r.json()
+          ),
+          fetch(`/api/suggest?keyword=${encodeURIComponent(primary)}`).then(
+            (r) => r.json()
+          ),
+        ]);
 
       const trends =
         trendsRes.status === "fulfilled" && !trendsRes.value.error
@@ -59,17 +83,32 @@ export default function Home() {
         redditRes.status === "fulfilled" && !redditRes.value.error
           ? redditRes.value
           : null;
+      const kwData =
+        keywordRes.status === "fulfilled" ? keywordRes.value : null;
+      const suggest =
+        suggestRes.status === "fulfilled" ? suggestRes.value : null;
 
       setTrendsData(trends);
       setRedditData(reddit);
+      setKeywordData(kwData);
+      setSuggestData(suggest);
       setIsLoadingTrends(false);
       setIsLoadingReddit(false);
+      setIsLoadingKeywords(false);
+      setIsLoadingSuggest(false);
 
+      // Now analyze with Claude Haiku — include keyword metrics too
       setIsLoadingAnalysis(true);
       const analyzeRes = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: primary, trendsData: trends, redditData: reddit }),
+        body: JSON.stringify({
+          keyword: primary,
+          trendsData: trends,
+          redditData: reddit,
+          keywordData: kwData,
+          suggestData: suggest,
+        }),
       });
       const analysisResult = await analyzeRes.json();
 
@@ -83,12 +122,20 @@ export default function Home() {
     } finally {
       setIsLoadingTrends(false);
       setIsLoadingReddit(false);
+      setIsLoadingKeywords(false);
+      setIsLoadingSuggest(false);
       setIsLoadingAnalysis(false);
     }
   };
 
-  const isLoading = isLoadingTrends || isLoadingReddit || isLoadingAnalysis;
-  const hasData = trendsData || redditData || analysisData;
+  const isLoading =
+    isLoadingTrends ||
+    isLoadingReddit ||
+    isLoadingKeywords ||
+    isLoadingSuggest ||
+    isLoadingAnalysis;
+  const hasData =
+    trendsData || redditData || analysisData || keywordData || suggestData;
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -104,14 +151,14 @@ export default function Home() {
                 Keyword Intelligence
               </h1>
               <p className="text-slate-400 text-xs mt-0.5">
-                Search Trend Analyzer
+                Search Trend & Keyword Analyzer
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/10 border border-indigo-500/20 rounded-full">
             <Zap size={12} className="text-indigo-400" />
             <span className="text-indigo-300 text-xs">
-              Google Trends + Reddit + Claude Haiku
+              Google Ads + Trends + Reddit + Claude Haiku
             </span>
           </div>
         </div>
@@ -137,15 +184,31 @@ export default function Home() {
               Enter a keyword to get started
             </h2>
             <p className="text-slate-500 text-sm max-w-md mx-auto">
-              Analyze Google Trends data, Reddit discussions, and get AI-powered
-              content insights for any keyword or topic.
+              Get Google Ads keyword metrics, search trends, Reddit signals,
+              autocomplete insights, and AI-powered analysis for any topic.
             </p>
           </div>
         )}
 
         {/* Results */}
-        {(hasData || isLoadingTrends || isLoadingReddit) && (
+        {(hasData || isLoading) && (
           <>
+            {/* Keyword Metrics — Google Ads Keyword Planner */}
+            {isLoadingKeywords ? (
+              <SkeletonCard height="h-72" />
+            ) : (
+              keywordData && (
+                <KeywordMetrics
+                  primaryMetrics={keywordData.primaryMetrics}
+                  relatedKeywords={keywordData.relatedKeywords}
+                  keyword={currentKeyword}
+                  isConfigured={keywordData.isConfigured}
+                  error={keywordData.error}
+                />
+              )
+            )}
+
+            {/* Trends chart */}
             {isLoadingTrends ? (
               <SkeletonCard height="h-80" />
             ) : (
@@ -157,6 +220,7 @@ export default function Home() {
               )
             )}
 
+            {/* Related queries + Regional interest */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {isLoadingTrends ? (
                 <>
@@ -177,6 +241,16 @@ export default function Home() {
               )}
             </div>
 
+            {/* Google Autocomplete Suggestions */}
+            {isLoadingSuggest ? (
+              <SkeletonCard />
+            ) : (
+              suggestData && (
+                <SearchSuggestions data={suggestData} keyword={currentKeyword} />
+              )
+            )}
+
+            {/* Reddit signals */}
             {isLoadingReddit ? (
               <SkeletonCard />
             ) : (
@@ -186,6 +260,7 @@ export default function Home() {
               )
             )}
 
+            {/* AI Analysis */}
             {isLoadingAnalysis ? (
               <AnalysisPanel
                 analysis={{
