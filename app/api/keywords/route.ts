@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 async function getAccessToken(): Promise<string | null> {
-  const clientId = process.env.GOOGLE_ADS_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN;
+  const clientId = process.env.GOOGLE_ADS_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_ADS_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.GOOGLE_ADS_REFRESH_TOKEN?.trim();
 
-  if (!clientId || !clientSecret || !refreshToken) return null;
+  console.log("[keywords] ENV check:", {
+    hasClientId: !!clientId,
+    hasClientSecret: !!clientSecret,
+    hasRefreshToken: !!refreshToken,
+    refreshTokenStart: refreshToken?.substring(0, 6),
+    clientIdLen: clientId?.length,
+  });
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    console.log("[keywords] Missing env vars, returning null");
+    return null;
+  }
 
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -19,10 +30,13 @@ async function getAccessToken(): Promise<string | null> {
       }),
     });
 
-    if (!response.ok) return null;
     const data = await response.json();
+    console.log("[keywords] OAuth response status:", response.status, "has_token:", !!data.access_token, "error:", data.error);
+
+    if (!response.ok || !data.access_token) return null;
     return data.access_token;
-  } catch {
+  } catch (err) {
+    console.error("[keywords] OAuth fetch error:", err);
     return null;
   }
 }
