@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const response = await fetch(
-      `https://googleads.googleapis.com/v18/customers/${customerId}:generateKeywordIdeas`,
+      `https://googleads.googleapis.com/v23/customers/${customerId}:generateKeywordIdeas`,
       {
         method: "POST",
         headers,
@@ -102,7 +102,9 @@ export async function GET(req: NextRequest) {
         isConfigured: true,
         primaryMetrics: null,
         relatedKeywords: [],
-        error: errorBody.error?.message || `Google Ads API error (${response.status})`,
+        error: errorBody.error?.details?.[0]?.errors?.[0]?.message
+          || errorBody.error?.message
+          || `Google Ads API error (${response.status})`,
       });
     }
 
